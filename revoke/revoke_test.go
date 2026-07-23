@@ -2,10 +2,12 @@ package revoke
 
 import (
 	"encoding/json"
+	"errors"
 	"io"
 	"net/http"
 	"strings"
 	"testing"
+	"time"
 
 	"github.com/google/go-cmp/cmp"
 )
@@ -63,6 +65,27 @@ func TestClient_Revoke(t *testing.T) {
 		})})
 		if err := c.Revoke(t.Context(), []string{"ghu_a"}); err == nil {
 			t.Error("Revoke() expected an error, got nil")
+		}
+	})
+
+	t.Run("429 is reported as a *RateLimitError with Retry-After", func(t *testing.T) {
+		t.Parallel()
+
+		c := New(&http.Client{Transport: roundTripFunc(func(_ *http.Request) (*http.Response, error) {
+			return &http.Response{
+				StatusCode: http.StatusTooManyRequests,
+				Header:     http.Header{"Retry-After": {"30"}},
+				Body:       io.NopCloser(strings.NewReader("rate limited")),
+			}, nil
+		})})
+
+		err := c.Revoke(t.Context(), []string{"ghu_a"})
+		var rle *RateLimitError
+		if !errors.As(err, &rle) {
+			t.Fatalf("Revoke() error = %v, want a *RateLimitError", err)
+		}
+		if rle.RetryAfter != 30*time.Second {
+			t.Errorf("RetryAfter = %s, want 30s", rle.RetryAfter)
 		}
 	})
 
