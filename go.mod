@@ -1,5 +1,5 @@
 module github.com/suzuki-shunsuke/go-revoke-github-access-token
 
-go 1.26.4
+go 1.25
 
 require github.com/google/go-cmp v0.7.0
